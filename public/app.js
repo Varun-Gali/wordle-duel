@@ -216,6 +216,9 @@ function initHomeListeners() {
 
       updateNavAvatar();
 
+      // If arriving from login screen (no mode set), go home
+      if (!S.mode) { showScreen('screen-home'); return; }
+
       // Proceed based on which mode the player pressed
       if (S.mode === 'quick')  { S.socket.emit('join_queue', { name }); }
       if (S.mode === 'create') { S.socket.emit('create_private', { name }); }
@@ -858,26 +861,15 @@ function initNavDropdown() {
   const signOutBtn = $('nav-signout-btn');
   if (signOutBtn) {
     signOutBtn.onclick = () => {
-      // Clear all stored auth
-      S.name    = '';
-      S.email   = '';
-      S.picture = '';
-      S.elo     = 1200;
-      localStorage.removeItem('wd_name');
-      localStorage.removeItem('wd_email');
-      localStorage.removeItem('wd_picture');
-      localStorage.removeItem('wd_elo');
-      // Reset avatar
+      S.name = ''; S.email = ''; S.picture = ''; S.elo = 1200;
+      ['wd_name','wd_email','wd_picture','wd_elo'].forEach(k => localStorage.removeItem(k));
       av.textContent = 'A';
       av.style.backgroundImage = '';
       $('nav-dd-name').textContent = 'Guest';
       $('nav-dd-email').textContent = '';
       dd.classList.add('hidden');
-      // Sign out from Google
-      if (window.google && google.accounts) {
-        google.accounts.id.disableAutoSelect();
-      }
-      showScreen('screen-home');
+      if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
+      showScreen('screen-login');
     };
   }
 }
@@ -892,10 +884,35 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavDropdown();
   fetchLeaderboard();
   fetchLiveRooms();
-  // Poll live rooms every 5s
   setInterval(fetchLiveRooms, 5000);
-  // Wire queue button
   const qBtn = $('queue-status-btn');
   if (qBtn) qBtn.onclick = () => { S.mode = 'quick'; goNameScreen(); };
-  showScreen('screen-home');
+
+  // Login screen logic
+  const loginBtn = $('login-google-btn');
+  if (loginBtn) {
+    loginBtn.onclick = () => {
+      if (!window.google) {
+        alert('Google Sign-In is loading, please try again.');
+        return;
+      }
+      google.accounts.id.prompt((n) => {
+        if (n.isNotDisplayed() || n.isSkippedMoment()) {
+          // Fallback: render hidden button and click it
+          const tmp = document.createElement('div');
+          tmp.style.display = 'none';
+          document.body.appendChild(tmp);
+          google.accounts.id.renderButton(tmp, { theme: 'filled_black', size: 'large' });
+          tmp.querySelector('div[role=button]')?.click();
+        }
+      });
+    };
+  }
+
+  // Show login if not signed in, else home
+  if (!S.name) {
+    showScreen('screen-login');
+  } else {
+    showScreen('screen-home');
+  }
 });

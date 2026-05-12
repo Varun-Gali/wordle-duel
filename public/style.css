@@ -566,10 +566,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .screen.active { opacity: 1; pointer-events: all; }
 
 /* Center card max-width fix for Name / Join screens */
-#screen-name, #screen-join {
+#screen-name, #screen-join, #screen-login {
   align-items: center;
   justify-content: center;
-  padding: 72px 16px 32px; /* 72px = nav height + breathing room */
+  padding: 72px 16px 32px;
   overflow-y: auto;
 }
 .center-card {
