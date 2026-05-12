@@ -48,6 +48,7 @@ function updateLeaderboard(name, won) {
   if (won) { leaderboard[name].wins++; leaderboard[name].elo += 25; }
   else     { leaderboard[name].losses++; leaderboard[name].elo = Math.max(1000, leaderboard[name].elo - 15); }
   saveLB();
+}
 
 // ─── Room helpers ─────────────────────────────────────────────────
 
