@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wordle Duel — 1v1 Word Battle</title>
+  <meta name="description" content="The ultimate 1v1 word strategy game. Solve faster, block smarter, and climb the global ranks." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Real Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ══ SCREENSHOT BLACKOUT (DRM SHIELD) ══ -->
+  <div id="blackout-overlay" aria-hidden="true">
+    <div class="blackout-inner">
+      <div class="blackout-icon">[BLOCKED]</div>
+      <h2>Screenshot Blocked</h2>
+      <p>Screen capture is not allowed during a Duel.</p>
+      <p class="blackout-sub">This round has been <strong>forfeited</strong>.</p>
+    </div>
+  </div>
+
+  <!-- Anti-screenshot video trick (renders black in capture tools) -->
+  <video id="drm-video" autoplay muted loop playsinline aria-hidden="true"></video>
+
+  <!-- ══ CHEAT MODAL ══ -->
+  <div id="cheat-modal" class="modal hidden" role="alertdialog" aria-modal="true">
+    <div class="glass-card cheat-card">
+      <div class="cheat-icon-lg">!</div>
+      <h2>Cheat Detected</h2>
+      <p id="cheat-desc">Screenshot attempt was detected and reported.</p>
+      <div class="cheat-badge">Round forfeited · Opponent wins</div>
+      <button id="cheat-ok-btn" class="btn btn-primary w-full">Acknowledge</button>
+    </div>
+  </div>
+
+  <!-- ══ ROUND END MODAL ══ -->
+  <div id="result-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="glass-card result-card">
+      <div id="result-outcome-label" class="outcome-label"></div>
+      <h1 id="result-headline" class="result-headline"></h1>
+      <p id="result-defeated-line" class="result-defeated"></p>
+
+      <div id="result-word-row" class="result-word-row"></div>
+
+      <div class="result-stats">
+        <div class="stat-box">
+          <span class="stat-icon">%</span>
+          <span class="stat-label">ACCURACY</span>
+          <span id="stat-accuracy" class="stat-value"></span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-icon">#</span>
+          <span class="stat-label">TURNS</span>
+          <span id="stat-turns" class="stat-value"></span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-icon">*</span>
+          <span class="stat-label">RESULT</span>
+          <span id="stat-result" class="stat-value"></span>
+        </div>
+      </div>
+
+      <div id="result-boards" class="result-boards"></div>
+
+      <div class="result-actions">
+        <button id="rematch-btn" class="btn btn-primary">⟳ &nbsp;Rematch</button>
+        <button id="lobby-btn" class="btn btn-secondary">⌂ &nbsp;Back to Lobby</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ APP ══ -->
+  <div id="app">
+
+    <!-- NAV -->
+    <nav class="top-nav" id="top-nav">
+      <div class="nav-logo">WORDLE DUEL</div>
+      <div class="nav-links" id="nav-links">
+        <a class="nav-link active" data-section="duel">DUEL</a>
+        <a class="nav-link" data-section="rankings">RANKINGS</a>
+        <a class="nav-link" data-section="vault">VAULT</a>
+      </div>
+      <div class="nav-right">
+        <div class="rank-chip"><span id="nav-rank">GOLD I</span></div>
+        <div class="nav-avatar-wrap" id="nav-avatar-wrap" style="position:relative">
+          <div class="nav-avatar" id="nav-avatar" title="Account">A</div>
+          <div id="nav-dropdown" class="nav-dropdown hidden">
+            <div id="nav-dd-name" class="nav-dd-name">Guest</div>
+            <div id="nav-dd-email" class="nav-dd-email"></div>
+            <hr style="border-color:rgba(255,255,255,0.06);margin:8px 0"/>
+            <button id="nav-signout-btn" class="nav-dd-btn">Sign Out</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ── SCREEN: HOME ── -->
+    <section id="screen-home" class="screen active">
+      <div class="home-hero">
+        <div class="hero-season-badge">SEASON 4 LIVE NOW</div>
+        <h1 class="hero-title">WORDS ARE YOUR<br/><span class="hero-accent">WEAPONS</span></h1>
+        <p class="hero-sub">The ultimate 1v1 word strategy game. Solve faster, block smarter,<br/>and climb the global ranks in high-octane verbal combat.</p>
+
+        <div class="hero-cta">
+          <button id="quick-match-btn" class="btn btn-primary btn-hero">▶ &nbsp;QUICK PLAY</button>
+          <button id="create-room-btn" class="btn btn-secondary btn-hero">⊞ &nbsp;CREATE PRIVATE LOBBY</button>
+        </div>
+
+        <div class="hero-word-tiles">
+          <div class="hero-tile correct">W</div>
+          <div class="hero-tile present">O</div>
+          <div class="hero-tile absent">R</div>
+          <div class="hero-tile present">D</div>
+          <div class="hero-tile correct">S</div>
+        </div>
+      </div>
+
+      <div class="home-lower">
+        <div class="home-leaderboard">
+          <div class="panel-header-row">
+            <span class="panel-icon">#</span>
+            <span class="panel-title">Global Leaderboard</span>
+            <a class="panel-action">VIEW ALL</a>
+          </div>
+          <div class="lb-rows">
+            <div class="lb-loading" style="text-align:center;color:var(--text-muted);padding:24px 12px;font-size:12px;letter-spacing:0.05em;">LOADING LEADERBOARD...</div>
+          </div>
+        </div>
+        <div class="home-live">
+          <div class="panel-header-row">
+            <span class="live-dot"></span>
+            <span class="panel-title">Live Duels</span>
+            <span id="live-count" class="panel-action" style="margin-left:auto;font-size:11px;color:var(--text-muted)"></span>
+          </div>
+          <div id="live-matches" class="live-matches">
+            <div class="lb-loading" style="text-align:center;color:var(--text-muted);padding:16px;font-size:12px;">LOADING...</div>
+          </div>
+          <button class="btn btn-secondary w-full mt-sm" id="queue-status-btn">ENTER QUEUE</button>
+        </div>
+      </div>
+
+      <div class="home-pitch">
+        <h2 class="pitch-title">MASTER THE ARENA</h2>
+        <div class="pitch-cols">
+          <div class="pitch-item"><span class="pitch-num">01.</span><h3>BLITZ</h3><p>Rapid-fire rounds where speed is the ultimate tiebreaker.</p></div>
+          <div class="pitch-item"><span class="pitch-num">02.</span><h3>STRATEGIZE</h3><p>Use "Freeze" and "Shuffle" powrups to disrupt your opponent.</p></div>
+          <div class="pitch-item"><span class="pitch-num">03.</span><h3>ASCEND</h3><p>Climb from Bronze to Grandmaster in seasonal ranked play.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SCREEN: NAME ENTRY ── -->
+    <section id="screen-name" class="screen">
+      <div class="center-card">
+        <h2 class="card-title">Enter Your Name</h2>
+        <p class="card-sub">This will appear on the leaderboard and during duels.</p>
+        
+        <!-- Google Sign-In Integrations -->
+        <div id="google-signin-container" style="margin-bottom: 20px;">
+          <button id="google-login-btn" class="btn btn-outline w-full" style="display: flex; align-items: center; justify-content: center; gap: 10px; border-color: rgba(255,255,255,0.12); font-weight: 600; font-size: 13px;">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M17.64 9.2c0-.63-.06-1.25-.16-1.84H9v3.49h4.84c-.21 1.12-.84 2.07-1.79 2.7l1.79 1.39c1.05-.97 1.8-2.4 1.8-4.74z" fill="#4285F4"/>
+              <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-1.79-1.39c-.5.33-1.14.53-1.8.53-1.79 0-3.3-1.21-3.84-2.84L5.69 13.5c1.05 2.1 3.23 3.5 5.75 3.5z" fill="#34A853"/>
+              <path d="M5.16 12.12c-.14-.42-.22-.86-.22-1.32s.08-.9.22-1.32L3.33 8.08c-.46.93-.73 1.97-.73 3.08s.27 2.15.73 3.08l1.83-1.42z" fill="#FBBC05"/>
+              <path d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.46.8 11.43 0 9 0 6.48 0 4.3 1.4 3.25 3.5l1.83 1.42C5.7 2.12 7.21 3.58 9 3.58z" fill="#EA4335"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+        </div>
+        <div class="divider-text" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 20px; font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em;">
+          <span style="flex: 1; height: 1px; background: rgba(255,255,255,0.08);"></span>
+          <span>Or use handle</span>
+          <span style="flex: 1; height: 1px; background: rgba(255,255,255,0.08);"></span>
+        </div>
+
+        <input id="name-input" class="text-input" type="text" maxlength="16" placeholder="YourHandle_123" autocomplete="off" spellcheck="false" />
+        <div id="name-mode-label" class="mode-label"></div>
+        <button id="name-confirm-btn" class="btn btn-primary w-full">CONTINUE</button>
+        <button id="name-back-btn" class="btn btn-ghost w-full">← Back</button>
+      </div>
+    </section>
+
+    <!-- ── SCREEN: JOIN PRIVATE ── -->
+    <section id="screen-join" class="screen">
+      <div class="center-card">
+        <h2 class="card-title">Join Private Lobby</h2>
+        <p class="card-sub">Enter the 6-character code your opponent shared.</p>
+        <input id="join-code-input" class="text-input code-input" type="text" maxlength="6" placeholder="ABC123" autocomplete="off" spellcheck="false" />
+        <div id="join-error" class="error-banner hidden"></div>
+        <button id="join-confirm-btn" class="btn btn-primary w-full">JOIN LOBBY</button>
+        <button id="join-back-btn" class="btn btn-ghost w-full">← Back</button>
+      </div>
+    </section>
+
+    <!-- ── SCREEN: LOBBY / QUEUE ── -->
+    <section id="screen-lobby" class="screen">
+      <div class="lobby-wrap">
+        <div class="lobby-main">
+          <div class="lobby-id-row">
+            <h2 id="lobby-id-title" class="lobby-id">LOBBY #????</h2>
+            <p id="lobby-type" class="lobby-type">Competitive 1v1 Arena · Private Match</p>
+          </div>
+
+          <div class="lobby-players">
+            <div class="lobby-player-card host-card">
+              <span class="lobby-host-tag">HOST</span>
+              <div class="lobby-player-avatar" id="lobby-my-avatar">A</div>
+              <div class="lobby-player-name" id="lobby-my-name">Player</div>
+              <div class="lobby-player-elo">ELO 1,200</div>
+              <div class="lobby-player-badges">
+                <span class="tile-badge correct">W</span>
+                <span class="tile-badge present">O</span>
+                <span class="tile-badge absent">R</span>
+                <span class="tile-badge present">D</span>
+              </div>
+            </div>
+
+            <div class="lobby-player-card waiting-card" id="lobby-opp-card">
+              <div class="waiting-icon">⊕</div>
+              <div class="waiting-text">Waiting for opponent...</div>
+            </div>
+            <!-- Code row persists outside opp card so it survives innerHTML replacement -->
+            <div id="lobby-code-row" class="lobby-code-row hidden">
+              <span class="code-label">ROOM CODE</span>
+              <strong id="lobby-code-display" class="code-display"></strong>
+              <button id="copy-code-btn" class="btn btn-ghost btn-sm">Copy</button>
+              <button id="invite-friend-btn" class="btn btn-outline btn-sm">Share</button>
+            </div>
+          </div>
+
+          <div class="lobby-chat-box">
+            <div class="chat-header">LOBBY CHAT <span id="chat-online" class="chat-online">1 online</span></div>
+            <div id="chat-messages" class="chat-messages">
+              <div class="chat-msg system">System: Lobby created. Invite an opponent to begin the duel.</div>
+            </div>
+            <div class="chat-input-row">
+              <input id="chat-input" class="chat-input" type="text" placeholder="Type a message..." maxlength="120" autocomplete="off" />
+              <button id="chat-send-btn" class="btn btn-primary btn-sm">→</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="lobby-sidebar">
+          <div class="rules-panel">
+            <div class="panel-header-row"><span>⚙</span><span class="panel-title">Match Rules</span></div>
+            <div class="rule-group">
+              <div class="rule-label">MATCH ROUNDS</div>
+              <div class="rule-options" data-rule="rounds">
+                <button class="rule-opt" data-val="1">1</button>
+                <button class="rule-opt active" data-val="3">3</button>
+                <button class="rule-opt" data-val="5">5</button>
+              </div>
+            </div>
+            <div class="rule-group">
+              <div class="rule-label">WORD LENGTH</div>
+              <div class="rule-options" data-rule="length">
+                <button class="rule-opt active" data-val="5">5</button>
+                <button class="rule-opt" data-val="6">6</button>
+                <button class="rule-opt" data-val="7">7</button>
+              </div>
+            </div>
+            <div class="rule-group">
+              <div class="rule-label">TURN TIMER</div>
+              <div class="rule-options" data-rule="timer">
+                <button class="rule-opt" data-val="30">30s</button>
+                <button class="rule-opt active" data-val="60">60s</button>
+                <button class="rule-opt" data-val="0">None</button>
+              </div>
+            </div>
+            <button id="start-duel-btn" class="btn btn-primary w-full btn-start-duel" disabled>START DUEL</button>
+            <p class="start-hint">Waiting for an opponent to join...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SCREEN: COUNTDOWN ── -->
+    <section id="screen-countdown" class="screen">
+      <div class="countdown-wrap">
+        <p class="match-found-tag">MATCH FOUND</p>
+        <div id="countdown-num" class="countdown-num">3</div>
+        <p class="countdown-hint">Prepare your strategy…</p>
+        <div id="countdown-players" class="countdown-players"></div>
+      </div>
+    </section>
+
+    <!-- ── SCREEN: GAME ── -->
+    <section id="screen-game" class="screen game-screen">
+
+      <!-- Game Top Bar -->
+      <header class="game-topbar">
+        <div class="game-brand">WORDLE DUEL</div>
+        <div class="game-hud-center">
+          <div class="hud-block">
+            <span class="hud-label">SCORE</span>
+            <span class="hud-score"><span id="my-score">0</span><span class="score-sep">—</span><span id="opp-score">0</span></span>
+          </div>
+          <div class="hud-divider"></div>
+          <div class="hud-block">
+            <span class="hud-label">TIME</span>
+            <span id="game-timer" class="hud-timer">02:00</span>
+          </div>
+        </div>
+          <div class="game-topbar-right">
+            <div class="rank-chip sm">GOLD I</div>
+            <button id="forfeit-btn" class="btn btn-ghost btn-sm">FORFEIT</button>
+        </div>
+      </header>
+
+      <!-- Timer Bar -->
+      <div class="game-timer-bar"><div id="timer-fill" class="timer-fill"></div></div>
+
+      <!-- Boards Area -->
+      <div class="game-arena">
+
+        <!-- My Board -->
+        <div class="arena-main">
+          <div class="arena-label">YOUR ARENA</div>
+          <div id="my-board" class="wordle-grid" aria-label="Your board"></div>
+          <div id="my-board-msg" class="board-msg" aria-live="polite"></div>
+        </div>
+
+        <!-- Ghost View (Opponent) -->
+        <div class="ghost-panel">
+          <div class="ghost-header">
+            <div class="ghost-badge">GHOST VIEW</div>
+            <div class="ghost-player-row">
+              <div id="ghost-avatar" class="ghost-avatar">X</div>
+              <span id="ghost-name" class="ghost-name">Opponent</span>
+            </div>
+          </div>
+          <div id="opp-board" class="wordle-grid ghost-grid" aria-label="Opponent board"></div>
+          <div id="ghost-status" class="ghost-status">Waiting for moves…</div>
+        </div>
+
+      </div>
+
+      <!-- Keyboard -->
+      <div id="keyboard" class="keyboard">
+        <div class="kb-row" id="kb-row-1"></div>
+        <div class="kb-row" id="kb-row-2"></div>
+        <div class="kb-row" id="kb-row-3"></div>
+      </div>
+
+    </section>
+
+  </div><!-- /#app -->
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
