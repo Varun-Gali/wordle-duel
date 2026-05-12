@@ -30,12 +30,8 @@ const ROUND_TIME  = 120;
 
 // ─── Leaderboard (file-backed persistent) ────────────────────────
 const LB_FILE = path.join(__dirname, 'leaderboard.json');
-let leaderboard = {
-  'X_SLAYER_X':    { name: 'X_SLAYER_X',    wins: 142, losses: 12, elo: 2450 },
-  'Ace_WordSmith': { name: 'Ace_WordSmith',  wins: 98,  losses: 15, elo: 1850 },
-  'ZenGuesser':    { name: 'ZenGuesser',     wins: 76,  losses: 24, elo: 1620 },
-  'LetterLover':   { name: 'LetterLover',    wins: 45,  losses: 20, elo: 1410 },
-};
+let leaderboard = {}; // starts empty — real players only
+
 try {
   if (fs.existsSync(LB_FILE)) {
     leaderboard = JSON.parse(fs.readFileSync(LB_FILE, 'utf8'));
@@ -52,9 +48,9 @@ function updateLeaderboard(name, won) {
   if (won) { leaderboard[name].wins++; leaderboard[name].elo += 25; }
   else     { leaderboard[name].losses++; leaderboard[name].elo = Math.max(1000, leaderboard[name].elo - 15); }
   saveLB();
-}
 
 // ─── Room helpers ─────────────────────────────────────────────────
+
 function createRoom(id, word) {
   return {
     id, word,

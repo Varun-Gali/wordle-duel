@@ -777,13 +777,19 @@ function fetchLeaderboard() {
       const lb = document.querySelector('.lb-rows');
       if (!lb) return;
       lb.innerHTML = '';
+      if (data.length === 0) {
+        lb.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px 12px;font-size:12px;letter-spacing:.04em">NO PLAYERS YET — BE THE FIRST!</div>';
+        return;
+      }
       data.forEach((p, i) => {
         const row = document.createElement('div');
         row.className = 'lb-row';
-        const medal = i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#b45309' : '#444';
+        const medal = i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#b45309' : 'var(--text-muted)';
+        const hash = Math.abs(p.name.split('').reduce((a,c) => (a << 5) - a + c.charCodeAt(0), 0));
+        const color = '#' + (hash % 0xFFFFFF).toString(16).padStart(6, '0');
         row.innerHTML = `
           <span class="lb-rank" style="color:${medal}">${i + 1}</span>
-          <div class="lb-avatar" style="background:#${Math.abs(p.name.split('').reduce((a,c)=>a+c.charCodeAt(0),0)*2654435761)%0xFFFFFF|0 .toString(16).padStart(6,'0')}">${p.name[0].toUpperCase()}</div>
+          <div class="lb-avatar" style="background:${color}">${p.name[0].toUpperCase()}</div>
           <div class="lb-info">
             <span class="lb-name">${p.name}</span>
             <span class="lb-sub">W:${p.wins} L:${p.losses}</span>
