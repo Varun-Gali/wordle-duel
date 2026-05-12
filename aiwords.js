@@ -1,7 +1,7 @@
 const https = require('https');
 const { WORDS } = require('./words');
 
-const NVIDIA_API_KEY = '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';
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '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';
 const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 
 // Pre-generated word cache — filled in background
