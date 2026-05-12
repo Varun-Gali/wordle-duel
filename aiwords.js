@@ -4,12 +4,21 @@ const { WORDS } = require('./words');
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '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';
 const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 
-// Pre-generated word cache — filled in background
-const wordCache = [];
-const CACHE_SIZE = 20;
-let cacheRefilling = false;
+// Separate caches per word length
+const wordCaches = { 5: [], 6: [], 7: [] };
+const CACHE_SIZE = 15;
+let cacheRefilling = { 5: false, 6: false, 7: false };
 
-function getStaticWord() {
+// Random themes for variety
+const THEMES = [
+  'nature', 'animals', 'food', 'sports', 'music', 'travel', 'science',
+  'colors', 'emotions', 'weather', 'body', 'clothes', 'tools', 'kitchen',
+  'garden', 'ocean', 'forest', 'city', 'space', 'history'
+];
+
+function getStaticWord(length = 5) {
+  const pool = WORDS.filter(w => w.length === length);
+  if (pool.length) return pool[Math.floor(Math.random() * pool.length)];
   return WORDS[Math.floor(Math.random() * WORDS.length)];
 }
 
@@ -18,8 +27,8 @@ function callNvidiaAPI(prompt) {
     const body = JSON.stringify({
       model: 'meta/llama-3.1-8b-instruct',
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.9,
-      max_tokens: 50,
+      temperature: 1.0,
+      max_tokens: 20,
       stream: false,
     });
 
@@ -54,59 +63,53 @@ function callNvidiaAPI(prompt) {
   });
 }
 
-async function generateAIWord() {
+async function generateAIWord(length = 5) {
   try {
-    const prompt = `Generate exactly ONE common 5-letter English word suitable for a Wordle game. 
-The word must:
-- Be exactly 5 letters
-- Be a real, common English word
-- NOT be a proper noun
-- NOT contain numbers or special characters
-- Be different from these recent words: ${wordCache.slice(-5).join(', ')}
-
-Reply with ONLY the single word in lowercase, nothing else.`;
+    const theme = THEMES[Math.floor(Math.random() * THEMES.length)];
+    const recentWords = wordCaches[length]?.slice(-5).join(', ') || '';
+    const prompt = `Give me ONE real English word that is EXACTLY ${length} letters long. Theme hint: ${theme}. The word must be a common dictionary word, no proper nouns. Do NOT use: ${recentWords || 'none'}. Reply with ONLY the single word in lowercase.`;
 
     const raw = await callNvidiaAPI(prompt);
-    // Extract first 5-letter alphabetic word from response
-    const match = raw.match(/\b([a-z]{5})\b/i);
+    const regex = new RegExp(`\\b([a-z]{${length}})\\b`, 'i');
+    const match = raw.match(regex);
     if (match) {
       const word = match[1].toLowerCase();
-      console.log(`[AI] Generated word: ${word}`);
+      console.log(`[AI] Generated ${length}-letter word: ${word} (theme: ${theme})`);
       return word;
     }
     throw new Error('No valid word in response');
   } catch (err) {
     console.warn(`[AI] Word generation failed: ${err.message} — using static`);
-    return getStaticWord();
+    return getStaticWord(length);
   }
 }
 
-async function refillCache() {
-  if (cacheRefilling) return;
-  cacheRefilling = true;
-  console.log('[AI] Refilling word cache…');
-  while (wordCache.length < CACHE_SIZE) {
-    const word = await generateAIWord();
-    wordCache.push(word);
-    // small delay between API calls
+async function refillCache(length = 5) {
+  if (cacheRefilling[length]) return;
+  cacheRefilling[length] = true;
+  console.log(`[AI] Refilling ${length}-letter word cache…`);
+  const cache = wordCaches[length] || [];
+  while (cache.length < CACHE_SIZE) {
+    const word = await generateAIWord(length);
+    cache.push(word);
     await new Promise(r => setTimeout(r, 300));
   }
-  cacheRefilling = false;
-  console.log(`[AI] Cache ready (${wordCache.length} words)`);
+  wordCaches[length] = cache;
+  cacheRefilling[length] = false;
+  console.log(`[AI] ${length}-letter cache ready (${cache.length} words)`);
 }
 
-async function getNextWord() {
-  if (wordCache.length > 0) {
-    const word = wordCache.shift();
-    // Refill in background if running low
-    if (wordCache.length < 5) refillCache().catch(console.warn);
+async function getNextWord(length = 5) {
+  const cache = wordCaches[length] || [];
+  if (cache.length > 0) {
+    const word = cache.shift();
+    if (cache.length < 5) refillCache(length).catch(console.warn);
     return word;
   }
-  // Cache empty — generate on demand (slower path)
-  return await generateAIWord();
+  return await generateAIWord(length);
 }
 
-// Seed the cache on startup
-refillCache().catch(console.warn);
+// Seed default 5-letter cache on startup
+refillCache(5).catch(console.warn);
 
 module.exports = { getNextWord, refillCache };

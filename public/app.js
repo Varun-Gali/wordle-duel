@@ -8,6 +8,7 @@ const S = {
   elo: parseInt(localStorage.getItem('wd_elo') || '1200'),
   mode: '',
   roomId: null,
+  wordLen: 5,
   players: [],
   myId: null,
   myGuesses: [],
@@ -85,10 +86,11 @@ function initSocket() {
     setTimeout(() => startCountdown(players, countdown), 1000);
   });
 
-  S.socket.on('round_start', ({ players, timeLimit, startTime }) => {
+  S.socket.on('round_start', ({ players, timeLimit, startTime, wordLength }) => {
     S.players = players;
     S.startTime = startTime;
     S.timeLimit = timeLimit;
+    S.wordLen = wordLength || 5;
     S.myGuesses = [];
     S.oppGuesses = [];
     S.currentInput = '';
@@ -153,7 +155,9 @@ function initSocket() {
   });
 
   S.socket.on('opponent_disconnected', ({ name }) => {
-    flashBoardMsg('ghost-status', `${name} disconnected`);
+    flashBoardMsg('ghost-status', `${name} disconnected — you win!`);
+    S.gameOver = true;
+    stopTimer();
   });
 
   S.socket.on('error_msg', ({ message }) => {
@@ -468,7 +472,7 @@ function buildBoard(boardId, isGhost) {
     const row = document.createElement('div');
     row.className = 'guess-row';
     row.id = `${boardId}-row-${r}`;
-    for (let c = 0; c < WORD_LEN; c++) {
+    for (let c = 0; c < S.wordLen; c++) {
       const tile = document.createElement('div');
       tile.className = 'tile';
       tile.id = `${boardId}-r${r}-c${c}`;
@@ -533,7 +537,7 @@ function updateKeyboard(guess) {
 function renderCurrentInput() {
   const rowIdx = S.myGuesses.length;
   if (rowIdx >= MAX_GUESSES) return;
-  for (let c = 0; c < WORD_LEN; c++) {
+  for (let c = 0; c < S.wordLen; c++) {
     const tile = $(`my-board-r${rowIdx}-c${c}`);
     if (!tile) continue;
     const ch = S.currentInput[c] || '';
@@ -548,7 +552,7 @@ function renderCurrentInput() {
     } else {
       tile.classList.remove('filled');
     }
-    tile.classList.toggle('active', c === S.currentInput.length && c < WORD_LEN);
+    tile.classList.toggle('active', c === S.currentInput.length && c < S.wordLen);
   }
 }
 
@@ -559,14 +563,14 @@ function handleKey(key) {
     renderCurrentInput();
   } else if (key === 'ENTER') {
     submitGuess();
-  } else if (/^[A-Z]$/i.test(key) && S.currentInput.length < WORD_LEN) {
+  } else if (/^[A-Z]$/i.test(key) && S.currentInput.length < S.wordLen) {
     S.currentInput += key.toUpperCase();
     renderCurrentInput();
   }
 }
 
 function submitGuess() {
-  if (S.currentInput.length < WORD_LEN) {
+  if (S.currentInput.length < S.wordLen) {
     shakeCurrentRow();
     flashBoardMsg('my-board-msg', 'Not enough letters');
     return;
@@ -576,7 +580,7 @@ function submitGuess() {
 
 function shakeCurrentRow() {
   const rowIdx = S.myGuesses.length;
-  for (let c = 0; c < WORD_LEN; c++) {
+  for (let c = 0; c < S.wordLen; c++) {
     const tile = $(`my-board-r${rowIdx}-c${c}`);
     if (tile) { tile.classList.add('shake'); setTimeout(() => tile.classList.remove('shake'), 500); }
   }
@@ -594,7 +598,7 @@ function handleWon() {
   S.gameOver = true;
   flashBoardMsg('my-board-msg', 'You got it!', 60000);
   const rowIdx = S.myGuesses.length - 1;
-  for (let c = 0; c < WORD_LEN; c++) {
+  for (let c = 0; c < S.wordLen; c++) {
     const tile = $(`my-board-r${rowIdx}-c${c}`);
     if (tile) setTimeout(() => tile.classList.add('victory'), c * 100 + 400);
   }
@@ -742,7 +746,11 @@ function initAntiCheat() {
 
 function initPhysicalKeyboard() {
   document.addEventListener('keydown', e => {
-    if (e.ctrlKey || e.metaKey || e.altKey || $('chat-input') === document.activeElement || $('name-input') === document.activeElement || $('join-code-input') === document.activeElement) return;
+    // Only handle keys when game screen is active
+    if (!$('screen-game')?.classList.contains('active')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if ($('chat-input') === document.activeElement) return;
+    e.preventDefault();
     const k = e.key.toUpperCase();
     if (k === 'ENTER') { handleKey('ENTER'); return; }
     if (k === 'BACKSPACE') { handleKey('BKSP'); return; }

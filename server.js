@@ -52,9 +52,9 @@ function updateLeaderboard(name, won) {
 
 // ─── Room helpers ─────────────────────────────────────────────────
 
-function createRoom(id, word) {
+function createRoom(id, word, wordLength = 5) {
   return {
-    id, word,
+    id, word, wordLength,
     players: [],
     guesses: {},
     finished: {},
@@ -97,6 +97,7 @@ function startRoom(room) {
     players: room.players,
     timeLimit: ROUND_TIME,
     startTime: room.startTime,
+    wordLength: room.wordLength,
   });
   room.globalTimer = setTimeout(() => endRound(room, null), ROUND_TIME * 1000);
 }
@@ -203,7 +204,7 @@ io.on('connection', (socket) => {
   });
 
   // ── Guess ──
-  socket.on('submit_guess', ({ guess }) => {
+  socket.on('submit_guess', async ({ guess }) => {
     const roomId = socketToRoom[socket.id];
     if (!roomId) return;
     const room = rooms[roomId];
@@ -212,8 +213,23 @@ io.on('connection', (socket) => {
     if (room.finished[socket.id] !== null)   return;
 
     const word = (guess || '').toLowerCase().trim();
-    if (word.length !== 5)    { socket.emit('guess_error', { message: 'Word must be 5 letters.' }); return; }
-    if (!isValidWord(word))   { socket.emit('guess_error', { message: 'Not in word list.' });        return; }
+    const wLen = room.wordLength || 5;
+    if (word.length !== wLen) {
+      socket.emit('guess_error', { message: `Word must be ${wLen} letters.` }); return;
+    }
+
+    // Always accept if it's the room's own answer word
+    const isAnswer = word === room.word;
+    if (!isAnswer) {
+      // Quick dictionary check (2s timeout, fail open)
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 2000);
+        const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`, { signal: ctrl.signal });
+        clearTimeout(t);
+        if (!r.ok) { socket.emit('guess_error', { message: 'Not a valid word.' }); return; }
+      } catch { /* timeout or network error — accept the word */ }
+    }
 
     const result     = checkGuess(word, room.word);
     const guessObj   = { word, result };
