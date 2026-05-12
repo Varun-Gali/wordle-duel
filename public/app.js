@@ -733,17 +733,9 @@ function initAntiCheat() {
     }, 600);
   });
 
-  const vid = $('drm-video');
-  if (vid) {
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 1;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, 1, 1);
-    vid.srcObject = canvas.captureStream(1);
-    vid.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;opacity:0;z-index:-1;mix-blend-mode:multiply;';
-  }
+  // Visibility/focus anti-cheat only active during game
 }
+
 
 function initPhysicalKeyboard() {
   document.addEventListener('keydown', e => {
