@@ -196,7 +196,7 @@ function initHomeListeners() {
   });
 
   // ── Real Google Sign-In ──────────────────────────────────────────
-  const GOOGLE_CLIENT_ID = '237185810756-mpegrdbmaa32oedh1eiqt7puj3m7510a.apps.googleusercontent.com';
+  const GOOGLE_CLIENT_ID = '237185810756-69uu8tqrk46rs7vqpepsfci7rnpi88nh.apps.googleusercontent.com';
 
   // Called by Google after successful auth
   window.handleGoogleCredential = function(response) {
