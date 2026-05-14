@@ -84,9 +84,12 @@
         <a class="nav-link active" data-section="duel">DUEL</a>
         <a class="nav-link" data-section="rankings">RANKINGS</a>
         <a class="nav-link" data-section="vault">VAULT</a>
+        <a class="nav-link" data-section="shop">SHOP</a>
       </div>
       <div class="nav-right">
+        <button id="mute-btn" class="btn btn-ghost btn-sm" style="margin-right:12px;font-size:16px;padding:4px;border:none;">🔊</button>
         <a href="https://ko-fi.com/wordleduel" target="_blank" title="Support the Game" style="display:inline-block; animation: spin 4s linear infinite; font-size:20px; text-decoration:none; margin-right:12px;">💖</a>
+        <div class="rank-chip sm" style="color:var(--secondary);border-color:var(--secondary)"><span id="nav-wurlds">10000 🪙</span></div>
         <div class="rank-chip"><span id="nav-rank">GOLD I</span></div>
         <div class="nav-avatar-wrap" id="nav-avatar-wrap" style="position:relative">
           <div class="nav-avatar" id="nav-avatar" title="Account">A</div>
@@ -290,12 +293,19 @@
                 <button class="rule-opt" data-val="1">ON</button>
               </div>
             </div>
-            <div class="rule-group">
+            <div class="rule-group" data-rule="timer">
               <div class="rule-label">TURN TIMER</div>
               <div class="rule-options" data-rule="timer">
                 <button class="rule-opt" data-val="30">30s</button>
                 <button class="rule-opt active" data-val="60">60s</button>
-                <button class="rule-opt" data-val="0">None</button>
+                <button class="rule-opt" data-val="0">NONE</button>
+              </div>
+            </div>
+            <div class="rule-group" data-rule="blindfold">
+              <div class="rule-label">BLINDFOLD MODE</div>
+              <div class="rule-options" data-rule="blindfold">
+                <button class="rule-opt active" data-val="0">OFF</button>
+                <button class="rule-opt" data-val="1">ON</button>
               </div>
             </div>
             <button id="start-duel-btn" class="btn btn-primary w-full btn-start-duel" disabled>START DUEL</button>
@@ -316,54 +326,42 @@
     </section>
 
     <!-- ── SCREEN: GAME ── -->
-    <section id="screen-game" class="screen game-screen">
-
-      <!-- Game Top Bar -->
-      <header class="game-topbar">
-        <div class="game-brand">WORDLE DUEL</div>
+    <div id="screen-game" class="screen game-screen">
+      <!-- Topbar -->
+      <div class="game-topbar">
+        <div class="game-brand">DUEL</div>
         <div class="game-hud-center">
-          <div class="hud-block">
-            <span class="hud-label">SCORE</span>
-            <span class="hud-score"><span id="my-score">0</span><span class="score-sep">—</span><span id="opp-score">0</span></span>
-          </div>
+          <div class="hud-block"><span class="hud-label">YOU</span><span id="hud-my-score" class="hud-score">0</span></div>
+          <span class="score-sep">-</span>
+          <div class="hud-block"><span class="hud-label">OPP</span><span id="hud-opp-score" class="hud-score">0</span></div>
           <div class="hud-divider"></div>
-          <div class="hud-block">
-            <span class="hud-label">TIME</span>
-            <span id="game-timer" class="hud-timer">02:00</span>
-          </div>
+          <div id="hud-timer" class="hud-timer">60</div>
         </div>
-          <div class="game-topbar-right">
-            <div class="rank-chip sm">GOLD I</div>
-            <button id="forfeit-btn" class="btn btn-ghost btn-sm">FORFEIT</button>
+        <div class="game-topbar-right">
+          <button id="forfeit-btn" class="btn btn-ghost btn-sm" style="color:var(--error);border-color:rgba(239,68,68,.3)">Forfeit</button>
         </div>
-      </header>
+      </div>
+      <div id="timer-bar" class="game-timer-bar"><div class="timer-fill" id="timer-fill"></div></div>
 
-      <!-- Timer Bar -->
-      <div class="game-timer-bar"><div id="timer-fill" class="timer-fill"></div></div>
-
-      <!-- Boards Area -->
+      <!-- Arena -->
       <div class="game-arena">
-
-        <!-- My Board -->
         <div class="arena-main">
-          <div class="arena-label">YOUR ARENA</div>
-          <div id="my-board" class="wordle-grid" aria-label="Your board"></div>
-          <div id="my-board-msg" class="board-msg" aria-live="polite"></div>
+          <div class="arena-label">YOUR BOARD</div>
+          <div id="my-board" class="wordle-grid"></div>
+          <div id="my-board-msg" class="board-msg"></div>
         </div>
-
-        <!-- Ghost View (Opponent) -->
+        
         <div class="ghost-panel">
           <div class="ghost-header">
-            <div class="ghost-badge">GHOST VIEW</div>
+            <span class="ghost-badge">LIVE FEED</span>
             <div class="ghost-player-row">
-              <div id="ghost-avatar" class="ghost-avatar">X</div>
-              <span id="ghost-name" class="ghost-name">Opponent</span>
+              <div class="ghost-avatar" id="ghost-avatar">O</div>
+              <span class="ghost-name" id="ghost-name">Opponent</span>
             </div>
+            <div id="ghost-status" class="ghost-status">Waiting for game to start...</div>
           </div>
-          <div id="opp-board" class="wordle-grid ghost-grid" aria-label="Opponent board"></div>
-          <div id="ghost-status" class="ghost-status">Waiting for moves…</div>
+          <div id="opp-board" class="wordle-grid ghost-grid"></div>
         </div>
-
       </div>
 
       <!-- Keyboard -->
@@ -372,8 +370,35 @@
         <div class="kb-row" id="kb-row-2"></div>
         <div class="kb-row" id="kb-row-3"></div>
       </div>
+    </div>
 
-    </section>
+    <!-- Shop Screen -->
+    <div id="screen-shop" class="screen" style="padding:24px;overflow-y:auto;">
+      <h2 style="font-family:var(--font-display);font-size:32px;font-weight:900;margin-bottom:8px;text-align:center;">THEME SHOP</h2>
+      <p style="text-align:center;color:var(--text-muted);margin-bottom:32px;">Spend Wurlds to unlock legendary themes for your board!</p>
+      <div id="shop-items" style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:800px;margin:0 auto;">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+
+    <!-- Vault Screen -->
+    <div id="screen-vault" class="screen" style="padding:24px;overflow-y:auto;align-items:center;">
+      <h2 style="font-family:var(--font-display);font-size:32px;font-weight:900;margin-bottom:8px;">MATCH VAULT</h2>
+      <p style="color:var(--text-muted);margin-bottom:24px;">Replay your last 10 matches</p>
+      <div id="vault-list" style="display:flex;flex-direction:column;gap:12px;width:100%;max-width:600px;">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+
+    <!-- Rank Up Celebration Modal -->
+    <div id="rankup-modal" class="modal hidden" style="background:rgba(0,0,0,0.9);">
+      <div class="glass-card" style="text-align:center;border-color:var(--secondary);box-shadow:0 0 60px var(--secondary-glow);">
+        <div style="font-size:64px;margin-bottom:10px;animation:bounceIn 0.8s ease;">⭐</div>
+        <h2 style="font-family:var(--font-display);font-size:32px;font-weight:900;color:var(--secondary);margin-bottom:10px;text-transform:uppercase;">RANK UP!</h2>
+        <p style="color:var(--text);font-size:16px;margin-bottom:20px;">You've been promoted to <strong id="new-rank-name" style="font-family:var(--font-display);font-size:24px;color:var(--primary);display:block;margin-top:8px;">PLATINUM</strong></p>
+        <button id="rankup-ok-btn" class="btn btn-primary w-full">CONTINUE</button>
+      </div>
+    </div>
 
   </div><!-- /#app -->
 

@@ -22,11 +22,17 @@ const S = {
   countdownInterval: null,
   screenshot: { blocked: false },
   isSubmitting: false,
+  wurlds: 10000,
+  themes: ['default'],
+  activeTheme: 'default',
+  history: [],
+  blindfold: 0,
+  muteSounds: false,
 };
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playSound(type) {
-  if (!audioCtx) return;
+  if (S.muteSounds || !audioCtx) return;
   if (audioCtx.state === 'suspended') audioCtx.resume();
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -150,6 +156,11 @@ function initSocket() {
     S.currentInput = '';
     S.gameOver = false;
     S.isSubmitting = false;
+    S.wurlds = 10000;
+    S.themes = ['default'];
+    S.activeTheme = 'default';
+    S.history = [];
+    S.blindfold = 0;
     initGameScreen();
     showScreen('screen-game');
     startTimer();
@@ -184,14 +195,44 @@ function initSocket() {
   S.socket.on('round_end', data => {
     stopTimer();
     const me = data.results.find(r => r.id === S.myId);
-    if (data.winner === S.myId) {
-      S.elo += 25;
-    } else if (data.winner) {
-      S.elo = Math.max(0, S.elo - 15);
+    if (me && me.lbUpdate) {
+      S.elo = me.lbUpdate.elo;
+      S.wurlds = me.lbUpdate.wurlds;
+      localStorage.setItem('wd_elo', S.elo);
+      updateNavAvatar();
+      if (me.lbUpdate.rankUp) {
+         setTimeout(() => {
+           $('new-rank-name').textContent = me.lbUpdate.newRank;
+           $('rankup-modal').classList.remove('hidden');
+         }, 4000);
+      }
     }
-    localStorage.setItem('wd_elo', S.elo);
-    updateNavAvatar();
     setTimeout(() => showResultModal(data), 1000);
+    S.socket.emit('get_profile', { name: S.name });
+  });
+
+  S.socket.on('profile_data', (data) => {
+    S.wurlds = data.wurlds || 10000;
+    S.history = data.history || [];
+    S.themes = data.themes || ['default'];
+    S.activeTheme = data.activeTheme || 'default';
+    updateNavAvatar();
+    renderShop();
+    renderVault();
+    applyTheme();
+  });
+
+  S.socket.on('shop_update', (res) => {
+    if (res.success) {
+      S.wurlds = res.wurlds;
+      S.themes = res.themes;
+      S.activeTheme = res.activeTheme;
+      updateNavAvatar();
+      renderShop();
+      applyTheme();
+    } else {
+      alert("Not enough Wurlds or already owned!");
+    }
   });
 
   S.socket.on('cheating_detected', ({ reason }) => {
@@ -413,6 +454,94 @@ function initHomeListeners() {
   $('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 }
 
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.onclick = (e) => {
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+      e.target.classList.add('active');
+      const sec = e.target.dataset.section;
+      if (sec === 'duel') showScreen('screen-home');
+      if (sec === 'rankings') {
+         // keep it simple, show home
+      }
+      if (sec === 'vault') showScreen('screen-vault');
+      if (sec === 'shop') showScreen('screen-shop');
+    };
+  });
+
+  $('rankup-ok-btn').onclick = () => { $('rankup-modal').classList.add('hidden'); };
+}
+
+function applyTheme() {
+  document.body.className = S.activeTheme === 'default' ? '' : `theme-${S.activeTheme}`;
+}
+
+const THEMES = [
+  { id: 'default', name: 'Classic Dark', cost: 0, colors: ['#3a3a3a', '#c9b458', '#6aaa64'] },
+  { id: 'cyberpunk', name: 'Cyberpunk', cost: 5000, colors: ['#3f3f46', '#eab308', '#10b981'] },
+  { id: 'ocean', name: 'Deep Ocean', cost: 2000, colors: ['#475569', '#fbbf24', '#059669'] }
+];
+
+function renderShop() {
+  const box = $('shop-items');
+  if (!box) return;
+  box.innerHTML = THEMES.map(t => {
+    const owned = S.themes.includes(t.id);
+    const active = S.activeTheme === t.id;
+    return `
+      <div class="shop-item ${owned ? 'owned' : ''} ${active ? 'active-theme' : ''}">
+        <div class="theme-preview">
+          <div class="tp-box" style="background:${t.colors[0]}"></div>
+          <div class="tp-box" style="background:${t.colors[1]}"></div>
+          <div class="tp-box" style="background:${t.colors[2]}"></div>
+        </div>
+        <h3 style="font-family:var(--font-display);font-size:16px;font-weight:800;">${t.name}</h3>
+        <p style="font-size:12px;color:var(--text-muted);">${owned ? 'Owned' : t.cost + ' 🪙'}</p>
+        <button class="btn ${active ? 'btn-ghost' : owned ? 'btn-outline' : 'btn-primary'}" 
+                onclick="${owned ? `setTheme('${t.id}')` : `buyTheme('${t.id}', ${t.cost})`}" 
+                ${active ? 'disabled' : ''}>
+          ${active ? 'EQUIPPED' : owned ? 'EQUIP' : 'BUY'}
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+function buyTheme(id, cost) {
+  if (S.wurlds < cost) return alert("Not enough Wurlds!");
+  if (confirm(`Buy theme for ${cost} Wurlds?`)) {
+    S.socket.emit('buy_theme', { name: S.name, themeId: id, cost });
+  }
+}
+
+function setTheme(id) {
+  S.socket.emit('set_theme', { name: S.name, themeId: id });
+}
+
+function renderVault() {
+  const box = $('vault-list');
+  if (!box) return;
+  if (!S.history || S.history.length === 0) {
+    box.innerHTML = '<p style="color:var(--text-muted);text-align:center;">No matches played yet.</p>';
+    return;
+  }
+  box.innerHTML = S.history.map(m => {
+    const d = new Date(m.date).toLocaleDateString();
+    const isP1 = m.p1.name === S.name;
+    const myData = isP1 ? m.p1 : (m.p2 || m.p1);
+    const oppData = isP1 ? m.p2 : m.p1;
+    const won = myData.won;
+    return `
+      <div class="vault-item">
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <span class="vault-word">${m.word}</span>
+          <span class="vault-date">${d} vs ${oppData ? oppData.name : 'Unknown'}</span>
+        </div>
+        <div class="vault-res ${won ? 'win' : 'loss'}">${won ? 'VICTORY' : 'DEFEAT'}</div>
+      </div>
+    `;
+  }).join('');
+}
+
 function goNameScreen() {
   if (S.mode === 'create') {
     const el = $('custom-word-group');
@@ -500,6 +629,8 @@ function updateNavAvatar() {
   // Update lobby elo display
   const eloEl = document.querySelector('.lobby-player-elo');
   if (eloEl) eloEl.textContent = `ELO ${S.elo.toLocaleString()}`;
+  const nw = $('nav-wurlds');
+  if (nw) nw.textContent = S.wurlds + ' 🪙';
 }
 
 function startRematch() {
@@ -594,6 +725,19 @@ function buildKeyboard() {
 function addMyGuess(guess) {
   const rowIdx = S.myGuesses.length;
   S.myGuesses.push(guess);
+  
+  if (S.blindfold && rowIdx > 0) {
+    // Reveal the previous row
+    const prev = S.myGuesses[rowIdx - 1];
+    for (let c = 0; c < S.wordLen; c++) {
+       const tile = $(`my-board-r${rowIdx-1}-c${c}`);
+       if (tile) {
+           tile.classList.remove('blind');
+           tile.classList.add(prev.result[c]);
+       }
+    }
+  }
+
   guess.result.forEach((state, c) => {
     const tile = $(`my-board-r${rowIdx}-c${c}`);
     if (!tile) return;
@@ -601,7 +745,11 @@ function addMyGuess(guess) {
     setTimeout(() => {
       playSound(state);
       tile.classList.remove('filled','active');
-      tile.classList.add(state);
+      if (S.blindfold && !S.gameOver) {
+         tile.classList.add('blind');
+      } else {
+         tile.classList.add(state);
+      }
     }, c * 100);
   });
   setTimeout(() => updateKeyboard(guess), 450);
@@ -684,6 +832,18 @@ function shakeCurrentRow() {
   for (let c = 0; c < S.wordLen; c++) {
     const tile = $(`my-board-r${rowIdx}-c${c}`);
     if (tile) { tile.classList.add('shake'); setTimeout(() => tile.classList.remove('shake'), 500); }
+  }
+  if (S.blindfold) {
+    // reveal all rows on game over
+    S.myGuesses.forEach((g, r) => {
+      for (let c = 0; c < S.wordLen; c++) {
+         const tile = $(`my-board-r${r}-c${c}`);
+         if (tile && tile.classList.contains('blind')) {
+            tile.classList.remove('blind');
+            tile.classList.add(g.result[c]);
+         }
+      }
+    });
   }
 }
 
@@ -1004,6 +1164,14 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(fetchLiveRooms, 5000);
   const qBtn = $('queue-status-btn');
   if (qBtn) qBtn.onclick = () => { S.mode = 'quick'; goNameScreen(); };
+
+  const muteBtn = $('mute-btn');
+  if (muteBtn) {
+     muteBtn.onclick = () => {
+        S.muteSounds = !S.muteSounds;
+        muteBtn.textContent = S.muteSounds ? '🔇' : '🔊';
+     };
+  }
 
   // Login screen logic
   const loginBtn = $('login-google-btn');

@@ -43,18 +43,53 @@ function saveLB() {
   fs.writeFile(LB_FILE, JSON.stringify(leaderboard, null, 2), () => {});
 }
 
-function updateLeaderboard(name, won) {
-  if (!leaderboard[name]) leaderboard[name] = { name, wins: 0, losses: 0, elo: 1200, streak: 0 };
-  if (won) { leaderboard[name].wins++; leaderboard[name].elo += 25; leaderboard[name].streak = (leaderboard[name].streak || 0) + 1; }
-  else     { leaderboard[name].losses++; leaderboard[name].elo = Math.max(1000, leaderboard[name].elo - 15); leaderboard[name].streak = 0; }
+function getRank(elo) {
+  if (elo >= 1600) return 'DIAMOND';
+  if (elo >= 1400) return 'PLATINUM';
+  if (elo >= 1200) return 'GOLD';
+  if (elo >= 1000) return 'SILVER';
+  return 'BRONZE';
+}
+
+function updateLeaderboard(name, won, matchRecord) {
+  if (!leaderboard[name]) leaderboard[name] = { name, wins: 0, losses: 0, elo: 1000, streak: 0, wurlds: 10000, themes: ['default'], activeTheme: 'default', history: [] };
+  
+  if (leaderboard[name].wurlds === undefined) leaderboard[name].wurlds = 10000;
+  if (!leaderboard[name].themes) leaderboard[name].themes = ['default'];
+  if (!leaderboard[name].history) leaderboard[name].history = [];
+  if (!leaderboard[name].activeTheme) leaderboard[name].activeTheme = 'default';
+
+  const oldRank = getRank(leaderboard[name].elo);
+
+  if (won) { 
+    leaderboard[name].wins++; 
+    leaderboard[name].elo += 25; 
+    leaderboard[name].streak = (leaderboard[name].streak || 0) + 1; 
+    leaderboard[name].wurlds += 50; 
+  } else { 
+    leaderboard[name].losses++; 
+    leaderboard[name].elo = Math.max(800, leaderboard[name].elo - 15); 
+    leaderboard[name].streak = 0; 
+    leaderboard[name].wurlds += 10;
+  }
+
+  const newRank = getRank(leaderboard[name].elo);
+  const rankUp = (oldRank !== newRank && leaderboard[name].elo > 1000 && won);
+
+  if (matchRecord) {
+     leaderboard[name].history.unshift(matchRecord);
+     if (leaderboard[name].history.length > 10) leaderboard[name].history.pop();
+  }
+  
   saveLB();
+  return { rankUp, newRank, oldRank, elo: leaderboard[name].elo, wurlds: leaderboard[name].wurlds };
 }
 
 // ─── Room helpers ─────────────────────────────────────────────────
 
-function createRoom(id, word, wordLength = 5, timeLimit = 60, hardcore = 0, isCustomWord = false) {
+function createRoom(id, word, wordLength = 5, timeLimit = 60, hardcore = 0, isCustomWord = false, blindfold = 0) {
   return {
-    id, word, wordLength, timeLimit, hardcore, isCustomWord,
+    id, word, wordLength, timeLimit, hardcore, isCustomWord, blindfold,
     players: [],
     guesses: {},
     finished: {},
@@ -72,14 +107,23 @@ function endRound(room, winnerId) {
   room.roundActive = false;
   clearTimeout(room.globalTimer);
 
-  room.players.forEach(p => updateLeaderboard(p.name, p.id === winnerId));
+  const matchRecord = {
+    date: Date.now(),
+    word: room.word,
+    p1: { name: room.players[0].name, guesses: room.guesses[room.players[0].id], won: winnerId === room.players[0].id },
+    p2: room.players[1] ? { name: room.players[1].name, guesses: room.guesses[room.players[1].id], won: winnerId === room.players[1].id } : null
+  };
 
-  const results = room.players.map(p => ({
-    id: p.id, name: p.name, color: p.color,
-    result: room.finished[p.id],
-    guesses: room.guesses[p.id],
-    cheated: room.cheaters.has(p.id),
-  }));
+  const results = room.players.map(p => {
+    const lbUpdate = updateLeaderboard(p.name, p.id === winnerId, matchRecord);
+    return {
+      id: p.id, name: p.name, color: p.color,
+      result: room.finished[p.id],
+      guesses: room.guesses[p.id],
+      cheated: room.cheaters.has(p.id),
+      lbUpdate
+    };
+  });
 
   io.to(room.id).emit('round_end', { word: room.word, winner: winnerId, results });
 
@@ -134,13 +178,16 @@ function tryMatchmake() {
       const wordLength = p1.length || 5;
       const timeLimit = p1.timeLimit !== undefined ? p1.timeLimit : 60;
       const hardcore = p1.hardcore || 0;
+      const blindfold = p1.blindfold || 0;
       const roomId = `room_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       const word   = await getNextWord(wordLength).catch(() => getRandomWord(wordLength));
-      const room   = createRoom(roomId, word, wordLength, timeLimit, hardcore, false);
+      const room   = createRoom(roomId, word, wordLength, timeLimit, hardcore, false, blindfold);
       const colors = ['#8b5cf6', '#06b6d4'];
+      const p1Theme = leaderboard[p1.name]?.activeTheme || 'default';
+      const p2Theme = leaderboard[p2.name]?.activeTheme || 'default';
 
-      room.players.push({ id: p1.socketId, name: p1.name, color: colors[0] });
-      room.players.push({ id: p2.socketId, name: p2.name, color: colors[1] });
+      room.players.push({ id: p1.socketId, name: p1.name, color: colors[0], theme: p1Theme });
+      room.players.push({ id: p2.socketId, name: p2.name, color: colors[1], theme: p2Theme });
       room.guesses[p1.socketId]  = []; room.finished[p1.socketId] = null;
       room.guesses[p2.socketId]  = []; room.finished[p2.socketId] = null;
       rooms[roomId] = room;
@@ -162,7 +209,7 @@ io.on('connection', (socket) => {
     const playerName = (name || 'Player').slice(0, 16).trim() || 'Player';
     const idx = waitingPlayers.findIndex(p => p.socketId === socket.id);
     if (idx !== -1) waitingPlayers.splice(idx, 1);
-    waitingPlayers.push({ socketId: socket.id, name: playerName, length: 5, timeLimit: 60, hardcore: 0 });
+    waitingPlayers.push({ socketId: socket.id, name: playerName, length: 5, timeLimit: 60, hardcore: 0, blindfold: 0 });
     socket.emit('in_queue', { position: waitingPlayers.length });
     tryMatchmake();
   });
@@ -173,6 +220,7 @@ io.on('connection', (socket) => {
       if (settings.length) player.length = settings.length;
       if (settings.timer !== undefined) player.timeLimit = settings.timer;
       if (settings.hardcore !== undefined) player.hardcore = settings.hardcore;
+      if (settings.blindfold !== undefined) player.blindfold = settings.blindfold;
     }
   });
 
@@ -183,14 +231,16 @@ io.on('connection', (socket) => {
   });
 
   // ── Private rooms ──
-  socket.on('create_private', async ({ name }) => {
+  socket.on('create_private', async ({ name, wordLen, isCustom }) => {
     const playerName = (name || 'Player').slice(0, 16).trim() || 'Player';
     const code   = Math.random().toString(36).slice(2, 8).toUpperCase();
     const roomId = `pvt_${code.toLowerCase()}`;
-    const word   = await getNextWord().catch(() => getRandomWord());
-    const room   = createRoom(roomId, word);
-    room.players.push({ id: socket.id, name: playerName, color: '#8b5cf6' });
-    room.guesses[socket.id]  = [];
+    const word   = await getNextWord(wordLen).catch(() => getRandomWord(wordLen));
+    const room = createRoom(roomId, word, wordLen, 60, 0, isCustom, 0);
+    room.isPrivate = true;
+    const pTheme = leaderboard[playerName]?.activeTheme || 'default';
+    room.players.push({ id: socket.id, name: playerName, color: '#8b5cf6', theme: pTheme });
+    room.guesses[socket.id] = [];
     room.finished[socket.id] = null;
     rooms[roomId] = room;
     socketToRoom[socket.id] = roomId;
@@ -208,7 +258,8 @@ io.on('connection', (socket) => {
     if (room.roundActive)        { socket.emit('error_msg', { message: 'Game already in progress.' });        return; }
 
     const playerName = (name || 'Player').slice(0, 16).trim() || 'Player';
-    room.players.push({ id: socket.id, name: playerName, color: '#06b6d4' });
+    const pTheme = leaderboard[playerName]?.activeTheme || 'default';
+    room.players.push({ id: socket.id, name: playerName, color: '#06b6d4', theme: pTheme });
     room.guesses[socket.id]  = [];
     room.finished[socket.id] = null;
     socketToRoom[socket.id] = roomId;
@@ -236,6 +287,9 @@ io.on('connection', (socket) => {
     }
     if (settings.hardcore !== undefined) {
        room.hardcore = settings.hardcore;
+    }
+    if (settings.blindfold !== undefined) {
+       room.blindfold = settings.blindfold;
     }
     
     // Broadcast to other players in the room to update UI
@@ -358,6 +412,37 @@ io.on('connection', (socket) => {
   socket.on('forfeit', () => {
     const roomId = socketToRoom[socket.id];
     if (roomId && rooms[roomId]) handleForfeit(socket, rooms[roomId]);
+  });
+
+  socket.on('get_profile', ({ name }) => {
+    const lb = leaderboard[name];
+    if (lb) {
+      socket.emit('profile_data', { wurlds: lb.wurlds || 10000, history: lb.history || [], themes: lb.themes || ['default'], activeTheme: lb.activeTheme || 'default' });
+    } else {
+      socket.emit('profile_data', { wurlds: 10000, history: [], themes: ['default'], activeTheme: 'default' });
+    }
+  });
+
+  socket.on('buy_theme', ({ themeId, cost, name }) => {
+    if (!leaderboard[name]) return;
+    if (leaderboard[name].wurlds >= cost && !leaderboard[name].themes.includes(themeId)) {
+        leaderboard[name].wurlds -= cost;
+        leaderboard[name].themes.push(themeId);
+        leaderboard[name].activeTheme = themeId;
+        saveLB();
+        socket.emit('shop_update', { success: true, wurlds: leaderboard[name].wurlds, themes: leaderboard[name].themes, activeTheme: themeId });
+    } else {
+        socket.emit('shop_update', { success: false });
+    }
+  });
+
+  socket.on('set_theme', ({ themeId, name }) => {
+    if (!leaderboard[name]) return;
+    if (leaderboard[name].themes.includes(themeId)) {
+       leaderboard[name].activeTheme = themeId;
+       saveLB();
+       socket.emit('shop_update', { success: true, wurlds: leaderboard[name].wurlds, themes: leaderboard[name].themes, activeTheme: themeId });
+    }
   });
 
   // ── Disconnect ──
