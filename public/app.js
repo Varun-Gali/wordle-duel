@@ -606,6 +606,9 @@ function submitGuess() {
   }
   S.isSubmitting = true;
   S.socket.emit('submit_guess', { guess: S.currentInput });
+  
+  clearTimeout(S.submitTimeout);
+  S.submitTimeout = setTimeout(() => { S.isSubmitting = false; }, 2000);
 }
 
 function shakeCurrentRow() {
@@ -777,11 +780,11 @@ function initAntiCheat() {
 
 function initPhysicalKeyboard() {
   document.addEventListener('keydown', e => {
-    // Only handle keys when game screen is active
     if (!$('screen-game')?.classList.contains('active')) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if ($('chat-input') === document.activeElement) return;
-    const k = e.key.toUpperCase();
+    
+    const k = (e.key || '').toUpperCase();
     if (k === 'ENTER') { e.preventDefault(); handleKey('ENTER'); return; }
     if (k === 'BACKSPACE') { e.preventDefault(); handleKey('BKSP'); return; }
     if (/^[A-Z]$/.test(k)) { e.preventDefault(); handleKey(k); return; }

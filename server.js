@@ -58,6 +58,7 @@ function createRoom(id, word, wordLength = 5, timeLimit = 60) {
     players: [],
     guesses: {},
     finished: {},
+    isProcessing: {},
     cheaters: new Set(),
     roundActive: false,
     startTime: null,
@@ -245,49 +246,54 @@ io.on('connection', (socket) => {
     if (room.cheaters.has(socket.id))        return;
     if (room.finished[socket.id] !== null)   return;
 
-    const word = (guess || '').toLowerCase().trim();
-    const wLen = room.wordLength || 5;
-    if (word.length !== wLen) {
-      socket.emit('guess_error', { message: `Word must be ${wLen} letters.` }); return;
-    }
+    if (room.isProcessing[socket.id])        return;
 
-    // Always accept if it's the room's own answer word
-    const isAnswer = word === room.word;
-    if (!isAnswer) {
-      // Quick dictionary check (2s timeout, fail open)
-      try {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 2000);
-        const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`, { signal: ctrl.signal });
-        clearTimeout(t);
-        if (!r.ok) { socket.emit('guess_error', { message: 'Not a valid word.' }); return; }
-      } catch { /* timeout or network error — accept the word */ }
-    }
-
-    const result     = checkGuess(word, room.word);
-    const guessObj   = { word, result };
-    room.guesses[socket.id].push(guessObj);
-    const won        = result.every(r => r === 'correct');
-    const guessCount = room.guesses[socket.id].length;
-
-    socket.emit('guess_result', { guess: guessObj, guessCount, won, lost: !won && guessCount >= MAX_GUESSES });
-
-    const oppId = room.players.find(p => p.id !== socket.id)?.id;
-    if (oppId) io.to(oppId).emit('opponent_guess', { result, guessIndex: guessCount - 1 });
-
-    if (won || guessCount >= MAX_GUESSES) {
-      room.finished[socket.id] = { won, guessCount };
-      if (won) {
-        socket.emit('you_won');
-        if (oppId) io.to(oppId).emit('opponent_finished', { won: true });
-      } else {
-        if (oppId) io.to(oppId).emit('opponent_finished', { won: false });
+    room.isProcessing[socket.id] = true;
+    try {
+      const word = (guess || '').toLowerCase().trim();
+      const wLen = room.wordLength || 5;
+      if (word.length !== wLen) {
+        socket.emit('guess_error', { message: `Word must be ${wLen} letters.` }); return;
       }
-      const allDone = room.players.every(p => room.finished[p.id] !== null);
-      if (allDone) {
-        const winner = room.players.find(p => room.finished[p.id]?.won)?.id || null;
-        endRound(room, winner);
+
+      const isAnswer = word === room.word;
+      if (!isAnswer && !isValidWord(word)) {
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 1500);
+          const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`, { signal: ctrl.signal });
+          clearTimeout(t);
+          if (!r.ok) { socket.emit('guess_error', { message: 'Not a valid word.' }); return; }
+        } catch { /* timeout or network error — accept the word */ }
       }
+
+      const result     = checkGuess(word, room.word);
+      const guessObj   = { word, result };
+      room.guesses[socket.id].push(guessObj);
+      const won        = result.every(r => r === 'correct');
+      const guessCount = room.guesses[socket.id].length;
+
+      socket.emit('guess_result', { guess: guessObj, guessCount, won, lost: !won && guessCount >= MAX_GUESSES });
+
+      const oppId = room.players.find(p => p.id !== socket.id)?.id;
+      if (oppId) io.to(oppId).emit('opponent_guess', { result, guessIndex: guessCount - 1 });
+
+      if (won || guessCount >= MAX_GUESSES) {
+        room.finished[socket.id] = { won, guessCount };
+        if (won) {
+          socket.emit('you_won');
+          if (oppId) io.to(oppId).emit('opponent_finished', { won: true });
+        } else {
+          if (oppId) io.to(oppId).emit('opponent_finished', { won: false });
+        }
+        const allDone = room.players.every(p => room.finished[p.id] !== null);
+        if (allDone) {
+          const winner = room.players.find(p => room.finished[p.id]?.won)?.id || null;
+          endRound(room, winner);
+        }
+      }
+    } finally {
+      room.isProcessing[socket.id] = false;
     }
   });
 
