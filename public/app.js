@@ -241,6 +241,7 @@ function initSocket() {
         document.querySelectorAll('.rule-options[data-rule="timer"] .rule-opt').forEach(b => {
             b.classList.toggle('active', parseInt(b.dataset.val, 10) === settings.timer);
         });
+    }
     if (settings.hardcore !== undefined) {
         document.querySelectorAll('.rule-options[data-rule="hardcore"] .rule-opt').forEach(b => {
             b.classList.toggle('active', parseInt(b.dataset.val, 10) === settings.hardcore);
@@ -414,9 +415,11 @@ function initHomeListeners() {
 
 function goNameScreen() {
   if (S.mode === 'create') {
-    show('custom-word-group');
+    const el = $('custom-word-group');
+    if (el) el.classList.remove('hidden');
   } else {
-    hide('custom-word-group');
+    const el = $('custom-word-group');
+    if (el) el.classList.add('hidden');
   }
 
   if (S.name) {
