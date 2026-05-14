@@ -307,13 +307,16 @@ function initHomeListeners() {
         showScreen('screen-home');
       } else if (sec === 'rankings') {
         showScreen('screen-home');
-        // Smooth scroll to leaderboard
         document.querySelector('.home-leaderboard').scrollIntoView({ behavior: 'smooth' });
       } else if (sec === 'vault') {
-        alert('Vault features are coming soon in Season 4!');
+        showScreen('screen-vault');
+      } else if (sec === 'shop') {
+        showScreen('screen-shop');
       }
     };
   });
+
+  $('rankup-ok-btn').onclick = () => { $('rankup-modal').classList.add('hidden'); };
 
   // ── Real Google Sign-In ──────────────────────────────────────────
   const GOOGLE_CLIENT_ID = '237185810756-69uu8tqrk46rs7vqpepsfci7rnpi88nh.apps.googleusercontent.com';
@@ -452,23 +455,6 @@ function initHomeListeners() {
 
   $('chat-send-btn').onclick = sendChat;
   $('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
-}
-
-  document.querySelectorAll('.nav-link').forEach(link => {
-    link.onclick = (e) => {
-      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-      e.target.classList.add('active');
-      const sec = e.target.dataset.section;
-      if (sec === 'duel') showScreen('screen-home');
-      if (sec === 'rankings') {
-         // keep it simple, show home
-      }
-      if (sec === 'vault') showScreen('screen-vault');
-      if (sec === 'shop') showScreen('screen-shop');
-    };
-  });
-
-  $('rankup-ok-btn').onclick = () => { $('rankup-modal').classList.add('hidden'); };
 }
 
 function applyTheme() {
