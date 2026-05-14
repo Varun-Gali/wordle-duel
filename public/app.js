@@ -150,7 +150,7 @@ function initSocket() {
     setTimeout(() => startCountdown(players, countdown), 1000);
   });
 
-  S.socket.on('round_start', ({ players, timeLimit, startTime, wordLength }) => {
+  S.socket.on('round_start', ({ players, timeLimit, startTime, wordLength, blindfold }) => {
     S.players = players;
     S.startTime = startTime;
     S.timeLimit = timeLimit;
@@ -160,11 +160,7 @@ function initSocket() {
     S.currentInput = '';
     S.gameOver = false;
     S.isSubmitting = false;
-    S.wurlds = 10000;
-    S.themes = ['default'];
-    S.activeTheme = 'default';
-    S.history = [];
-    S.blindfold = 0;
+    S.blindfold = blindfold || 0;
     initGameScreen();
     showScreen('screen-game');
     startTimer();
@@ -677,8 +673,8 @@ function initGameScreen() {
   $('my-board-msg').textContent = '';
   $('ghost-status').textContent = 'Waiting for moves...';
   $('ghost-status').style.color = '';
-  $('my-score').textContent = S.scores.me;
-  $('opp-score').textContent = S.scores.opp;
+  $('hud-my-score').textContent = S.scores.me;
+  $('hud-opp-score').textContent = S.scores.opp;
 }
 
 function buildBoard(boardId, isGhost) {
@@ -867,7 +863,7 @@ function handleLost() {
 function startTimer() {
   stopTimer();
   const fill = $('timer-fill');
-  const clock = $('game-timer');
+  const clock = $('hud-timer');
   S.timerInterval = setInterval(() => {
     const elapsed = (Date.now() - S.startTime) / 1000;
     const left = Math.max(0, S.timeLimit - elapsed);

@@ -143,6 +143,7 @@ function startRoom(room) {
     timeLimit: room.timeLimit,
     startTime: room.startTime,
     wordLength: room.wordLength,
+    blindfold: room.blindfold,
   });
   if (room.timeLimit > 0) {
     room.globalTimer = setTimeout(() => endRound(room, null), room.timeLimit * 1000);
