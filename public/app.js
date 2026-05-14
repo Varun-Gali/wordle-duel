@@ -24,6 +24,59 @@ const S = {
   isSubmitting: false,
 };
 
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(type) {
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  
+  const now = audioCtx.currentTime;
+  if (type === 'click') {
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(300, now + 0.05);
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+    osc.start(now); osc.stop(now + 0.05);
+  } else if (type === 'correct') {
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(800, now);
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+    osc.start(now); osc.stop(now + 0.2);
+  } else if (type === 'present') {
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(500, now);
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+    osc.start(now); osc.stop(now + 0.2);
+  } else if (type === 'absent') {
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, now);
+    gain.gain.setValueAtTime(0.05, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+    osc.start(now); osc.stop(now + 0.2);
+  } else if (type === 'win') {
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.setValueAtTime(600, now + 0.1);
+    osc.frequency.setValueAtTime(800, now + 0.2);
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.linearRampToValueAtTime(0, now + 0.6);
+    osc.start(now); osc.stop(now + 0.6);
+  } else if (type === 'lose') {
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(300, now);
+    osc.frequency.linearRampToValueAtTime(200, now + 0.5);
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.linearRampToValueAtTime(0, now + 0.5);
+    osc.start(now); osc.stop(now + 0.5);
+  }
+}
+
 const KEYBOARD_ROWS = [
   ['Q','W','E','R','T','Y','U','I','O','P'],
   ['A','S','D','F','G','H','J','K','L'],
@@ -187,6 +240,10 @@ function initSocket() {
     if (settings.timer !== undefined) {
         document.querySelectorAll('.rule-options[data-rule="timer"] .rule-opt').forEach(b => {
             b.classList.toggle('active', parseInt(b.dataset.val, 10) === settings.timer);
+        });
+    if (settings.hardcore !== undefined) {
+        document.querySelectorAll('.rule-options[data-rule="hardcore"] .rule-opt').forEach(b => {
+            b.classList.toggle('active', parseInt(b.dataset.val, 10) === settings.hardcore);
         });
     }
   });
@@ -356,9 +413,15 @@ function initHomeListeners() {
 }
 
 function goNameScreen() {
+  if (S.mode === 'create') {
+    show('custom-word-group');
+  } else {
+    hide('custom-word-group');
+  }
+
   if (S.name) {
     if (S.mode === 'quick')  { S.socket.emit('join_queue',    { name: S.name }); return; }
-    if (S.mode === 'create') { S.socket.emit('create_private',{ name: S.name }); return; }
+    if (S.mode === 'create') { S.socket.emit('create_private',{ name: S.name, customWord: $('custom-word-input').value.trim() }); return; }
     if (S.mode === 'join')   { showScreen('screen-join'); $('join-code-input').value=''; $('join-code-input').focus(); return; }
   }
   showScreen('screen-name');
@@ -373,7 +436,7 @@ function confirmName() {
   localStorage.setItem('wd_name', name);
   updateNavAvatar();
   if (S.mode === 'quick')  { S.socket.emit('join_queue', { name }); }
-  if (S.mode === 'create') { S.socket.emit('create_private', { name }); }
+  if (S.mode === 'create') { S.socket.emit('create_private', { name, customWord: $('custom-word-input').value.trim() }); }
   if (S.mode === 'join') {
     showScreen('screen-join');
     $('join-code-input').focus();
@@ -533,9 +596,10 @@ function addMyGuess(guess) {
     if (!tile) return;
     tile.textContent = guess.word[c].toUpperCase();
     setTimeout(() => {
+      playSound(state);
       tile.classList.remove('filled','active');
       tile.classList.add(state);
-    }, c * 80);
+    }, c * 100);
   });
   setTimeout(() => updateKeyboard(guess), 450);
 }
@@ -586,6 +650,7 @@ function renderCurrentInput() {
 
 function handleKey(key) {
   if (S.gameOver) return;
+  playSound('click');
   if (key === 'BKSP' || key === 'BACKSPACE') {
     S.currentInput = S.currentInput.slice(0, -1);
     renderCurrentInput();
@@ -629,6 +694,7 @@ function flashBoardMsg(elId, msg, duration = 2000) {
 
 function handleWon() {
   S.gameOver = true;
+  playSound('win');
   flashBoardMsg('my-board-msg', 'You got it!', 60000);
   const rowIdx = S.myGuesses.length - 1;
   for (let c = 0; c < S.wordLen; c++) {
@@ -639,6 +705,7 @@ function handleWon() {
 
 function handleLost() {
   S.gameOver = true;
+  playSound('lose');
   flashBoardMsg('my-board-msg', 'Out of guesses...', 60000);
 }
 
@@ -833,7 +900,7 @@ function fetchLeaderboard() {
           <div class="lb-avatar" style="background:${color}">${p.name[0].toUpperCase()}</div>
           <div class="lb-info">
             <span class="lb-name">${p.name}</span>
-            <span class="lb-sub">W:${p.wins} L:${p.losses}</span>
+            <span class="lb-sub">W:${p.wins} L:${p.losses} &nbsp;🔥 ${p.streak || 0}</span>
           </div>
           <span class="lb-elo">${p.elo}<br/><small>ELO</small></span>
         `;

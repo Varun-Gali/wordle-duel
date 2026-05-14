@@ -44,17 +44,17 @@ function saveLB() {
 }
 
 function updateLeaderboard(name, won) {
-  if (!leaderboard[name]) leaderboard[name] = { name, wins: 0, losses: 0, elo: 1200 };
-  if (won) { leaderboard[name].wins++; leaderboard[name].elo += 25; }
-  else     { leaderboard[name].losses++; leaderboard[name].elo = Math.max(1000, leaderboard[name].elo - 15); }
+  if (!leaderboard[name]) leaderboard[name] = { name, wins: 0, losses: 0, elo: 1200, streak: 0 };
+  if (won) { leaderboard[name].wins++; leaderboard[name].elo += 25; leaderboard[name].streak = (leaderboard[name].streak || 0) + 1; }
+  else     { leaderboard[name].losses++; leaderboard[name].elo = Math.max(1000, leaderboard[name].elo - 15); leaderboard[name].streak = 0; }
   saveLB();
 }
 
 // ─── Room helpers ─────────────────────────────────────────────────
 
-function createRoom(id, word, wordLength = 5, timeLimit = 60) {
+function createRoom(id, word, wordLength = 5, timeLimit = 60, hardcore = 0, isCustomWord = false) {
   return {
-    id, word, wordLength, timeLimit,
+    id, word, wordLength, timeLimit, hardcore, isCustomWord,
     players: [],
     guesses: {},
     finished: {},
@@ -133,9 +133,10 @@ function tryMatchmake() {
     (async () => {
       const wordLength = p1.length || 5;
       const timeLimit = p1.timeLimit !== undefined ? p1.timeLimit : 60;
+      const hardcore = p1.hardcore || 0;
       const roomId = `room_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       const word   = await getNextWord(wordLength).catch(() => getRandomWord(wordLength));
-      const room   = createRoom(roomId, word, wordLength, timeLimit);
+      const room   = createRoom(roomId, word, wordLength, timeLimit, hardcore, false);
       const colors = ['#8b5cf6', '#06b6d4'];
 
       room.players.push({ id: p1.socketId, name: p1.name, color: colors[0] });
@@ -161,7 +162,7 @@ io.on('connection', (socket) => {
     const playerName = (name || 'Player').slice(0, 16).trim() || 'Player';
     const idx = waitingPlayers.findIndex(p => p.socketId === socket.id);
     if (idx !== -1) waitingPlayers.splice(idx, 1);
-    waitingPlayers.push({ socketId: socket.id, name: playerName, length: 5, timeLimit: 60 });
+    waitingPlayers.push({ socketId: socket.id, name: playerName, length: 5, timeLimit: 60, hardcore: 0 });
     socket.emit('in_queue', { position: waitingPlayers.length });
     tryMatchmake();
   });
@@ -171,6 +172,7 @@ io.on('connection', (socket) => {
     if (player) {
       if (settings.length) player.length = settings.length;
       if (settings.timer !== undefined) player.timeLimit = settings.timer;
+      if (settings.hardcore !== undefined) player.hardcore = settings.hardcore;
     }
   });
 
@@ -223,7 +225,7 @@ io.on('connection', (socket) => {
     if (!room || room.players[0].id !== socket.id) return; // Only host can change
     if (room.roundActive) return;
 
-    if (settings.length) {
+    if (settings.length && !room.isCustomWord) {
        if (room.wordLength !== settings.length) {
            room.wordLength = settings.length;
            room.word = await getNextWord(room.wordLength).catch(() => getRandomWord(room.wordLength));
@@ -231,6 +233,9 @@ io.on('connection', (socket) => {
     }
     if (settings.timer !== undefined) {
        room.timeLimit = settings.timer;
+    }
+    if (settings.hardcore !== undefined) {
+       room.hardcore = settings.hardcore;
     }
     
     // Broadcast to other players in the room to update UI
@@ -254,6 +259,28 @@ io.on('connection', (socket) => {
       const wLen = room.wordLength || 5;
       if (word.length !== wLen) {
         socket.emit('guess_error', { message: `Word must be ${wLen} letters.` }); return;
+      }
+
+      if (room.hardcore === 1) {
+        const prevGuesses = room.guesses[socket.id] || [];
+        let mustHaveAt = {};
+        let mustContain = new Set();
+        prevGuesses.forEach(g => {
+            g.result.forEach((res, i) => {
+                if (res === 'correct') mustHaveAt[i] = g.word[i];
+                if (res === 'present') mustContain.add(g.word[i]);
+            });
+        });
+        for (let i in mustHaveAt) {
+            if (word[i] !== mustHaveAt[i]) {
+                socket.emit('guess_error', { message: `Hardcore: ${mustHaveAt[i].toUpperCase()} must be at pos ${parseInt(i)+1}` }); return;
+            }
+        }
+        for (let c of mustContain) {
+            if (!word.includes(c)) {
+                socket.emit('guess_error', { message: `Hardcore: Must contain ${c.toUpperCase()}` }); return;
+            }
+        }
       }
 
       const isAnswer = word === room.word;
