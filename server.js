@@ -130,9 +130,11 @@ function tryMatchmake() {
     }
 
     (async () => {
+      const wordLength = p1.length || 5;
+      const timeLimit = p1.timeLimit !== undefined ? p1.timeLimit : 60;
       const roomId = `room_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      const word   = await getNextWord().catch(() => getRandomWord());
-      const room   = createRoom(roomId, word);
+      const word   = await getNextWord(wordLength).catch(() => getRandomWord(wordLength));
+      const room   = createRoom(roomId, word, wordLength, timeLimit);
       const colors = ['#8b5cf6', '#06b6d4'];
 
       room.players.push({ id: p1.socketId, name: p1.name, color: colors[0] });
@@ -158,9 +160,17 @@ io.on('connection', (socket) => {
     const playerName = (name || 'Player').slice(0, 16).trim() || 'Player';
     const idx = waitingPlayers.findIndex(p => p.socketId === socket.id);
     if (idx !== -1) waitingPlayers.splice(idx, 1);
-    waitingPlayers.push({ socketId: socket.id, name: playerName });
+    waitingPlayers.push({ socketId: socket.id, name: playerName, length: 5, timeLimit: 60 });
     socket.emit('in_queue', { position: waitingPlayers.length });
     tryMatchmake();
+  });
+
+  socket.on('update_queue_settings', (settings) => {
+    const player = waitingPlayers.find(p => p.socketId === socket.id);
+    if (player) {
+      if (settings.length) player.length = settings.length;
+      if (settings.timer !== undefined) player.timeLimit = settings.timer;
+    }
   });
 
   socket.on('leave_queue', () => {

@@ -344,6 +344,8 @@ function initHomeListeners() {
         });
         if (S.roomId) {
            S.socket.emit('update_settings', settings);
+        } else if (S.mode === 'quick') {
+           S.socket.emit('update_queue_settings', settings);
         }
       };
     });
