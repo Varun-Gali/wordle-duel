@@ -52,9 +52,9 @@ function updateLeaderboard(name, won) {
 
 // ─── Room helpers ─────────────────────────────────────────────────
 
-function createRoom(id, word, wordLength = 5) {
+function createRoom(id, word, wordLength = 5, timeLimit = 60) {
   return {
-    id, word, wordLength,
+    id, word, wordLength, timeLimit,
     players: [],
     guesses: {},
     finished: {},
@@ -95,11 +95,13 @@ function startRoom(room) {
   io.to(room.id).emit('round_start', {
     roomId: room.id,
     players: room.players,
-    timeLimit: ROUND_TIME,
+    timeLimit: room.timeLimit,
     startTime: room.startTime,
     wordLength: room.wordLength,
   });
-  room.globalTimer = setTimeout(() => endRound(room, null), ROUND_TIME * 1000);
+  if (room.timeLimit > 0) {
+    room.globalTimer = setTimeout(() => endRound(room, null), room.timeLimit * 1000);
+  }
 }
 
 function handleForfeit(socket, room) {
@@ -201,6 +203,27 @@ io.on('connection', (socket) => {
 
     io.to(roomId).emit('match_found', { roomId, players: room.players, countdown: 3, private: true });
     setTimeout(() => startRoom(room), 3500);
+  });
+
+  socket.on('update_settings', async (settings) => {
+    const roomId = socketToRoom[socket.id];
+    if (!roomId) return;
+    const room = rooms[roomId];
+    if (!room || room.players[0].id !== socket.id) return; // Only host can change
+    if (room.roundActive) return;
+
+    if (settings.length) {
+       if (room.wordLength !== settings.length) {
+           room.wordLength = settings.length;
+           room.word = await getNextWord(room.wordLength).catch(() => getRandomWord(room.wordLength));
+       }
+    }
+    if (settings.timer !== undefined) {
+       room.timeLimit = settings.timer;
+    }
+    
+    // Broadcast to other players in the room to update UI
+    io.to(roomId).emit('settings_updated', settings);
   });
 
   // ── Guess ──

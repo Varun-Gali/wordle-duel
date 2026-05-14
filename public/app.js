@@ -21,6 +21,7 @@ const S = {
   scores: { me: 0, opp: 0 },
   countdownInterval: null,
   screenshot: { blocked: false },
+  isSubmitting: false,
 };
 
 const KEYBOARD_ROWS = [
@@ -95,12 +96,14 @@ function initSocket() {
     S.oppGuesses = [];
     S.currentInput = '';
     S.gameOver = false;
+    S.isSubmitting = false;
     initGameScreen();
     showScreen('screen-game');
     startTimer();
   });
 
   S.socket.on('guess_result', ({ guess, guessCount, won, lost }) => {
+    S.isSubmitting = false;
     addMyGuess(guess);
     S.currentInput = '';
     renderCurrentInput();
@@ -109,6 +112,7 @@ function initSocket() {
   });
 
   S.socket.on('guess_error', ({ message }) => {
+    S.isSubmitting = false;
     shakeCurrentRow();
     flashBoardMsg('my-board-msg', message);
   });
@@ -172,6 +176,19 @@ function initSocket() {
 
   S.socket.on('left_queue', () => {
     showScreen('screen-home');
+  });
+
+  S.socket.on('settings_updated', (settings) => {
+    if (settings.length) {
+        document.querySelectorAll('.rule-options[data-rule="length"] .rule-opt').forEach(b => {
+            b.classList.toggle('active', parseInt(b.dataset.val, 10) === settings.length);
+        });
+    }
+    if (settings.timer !== undefined) {
+        document.querySelectorAll('.rule-options[data-rule="timer"] .rule-opt').forEach(b => {
+            b.classList.toggle('active', parseInt(b.dataset.val, 10) === settings.timer);
+        });
+    }
   });
 }
 
@@ -320,6 +337,14 @@ function initHomeListeners() {
       btn.onclick = () => {
         group.querySelectorAll('.rule-opt').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+        const settings = {};
+        document.querySelectorAll('.rule-options').forEach(g => {
+           const active = g.querySelector('.rule-opt.active');
+           if (active) settings[g.dataset.rule] = parseInt(active.dataset.val, 10);
+        });
+        if (S.roomId) {
+           S.socket.emit('update_settings', settings);
+        }
       };
     });
   });
@@ -570,11 +595,13 @@ function handleKey(key) {
 }
 
 function submitGuess() {
+  if (S.isSubmitting) return;
   if (S.currentInput.length < S.wordLen) {
     shakeCurrentRow();
     flashBoardMsg('my-board-msg', 'Not enough letters');
     return;
   }
+  S.isSubmitting = true;
   S.socket.emit('submit_guess', { guess: S.currentInput });
 }
 
@@ -750,11 +777,10 @@ function initPhysicalKeyboard() {
     if (!$('screen-game')?.classList.contains('active')) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if ($('chat-input') === document.activeElement) return;
-    e.preventDefault();
     const k = e.key.toUpperCase();
-    if (k === 'ENTER') { handleKey('ENTER'); return; }
-    if (k === 'BACKSPACE') { handleKey('BKSP'); return; }
-    if (/^[A-Z]$/.test(k)) { handleKey(k); return; }
+    if (k === 'ENTER') { e.preventDefault(); handleKey('ENTER'); return; }
+    if (k === 'BACKSPACE') { e.preventDefault(); handleKey('BKSP'); return; }
+    if (/^[A-Z]$/.test(k)) { e.preventDefault(); handleKey(k); return; }
   });
 }
 
