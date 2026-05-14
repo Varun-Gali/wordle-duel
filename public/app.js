@@ -496,6 +496,7 @@ function buildBoard(boardId, isGhost) {
   for (let r = 0; r < MAX_GUESSES; r++) {
     const row = document.createElement('div');
     row.className = 'guess-row';
+    row.style.gridTemplateColumns = `repeat(${S.wordLen}, 1fr)`;
     row.id = `${boardId}-row-${r}`;
     for (let c = 0; c < S.wordLen; c++) {
       const tile = document.createElement('div');
@@ -690,7 +691,7 @@ function showResultModal(data) {
 
   const myResult = me?.result;
   $('stat-accuracy').textContent = myResult?.guessCount
-    ? `${Math.round(((WORD_LEN * myResult.guessCount - (myResult.guessCount - 1)) / (WORD_LEN * myResult.guessCount)) * 100)}%`
+    ? `${Math.round(((S.wordLen * myResult.guessCount - (myResult.guessCount - 1)) / (S.wordLen * myResult.guessCount)) * 100)}%`
     : '--';
   $('stat-turns').textContent = myResult?.guessCount ? `${myResult.guessCount} / ${MAX_GUESSES}` : '--';
   $('stat-result').textContent = myResult?.cheated ? 'Forfeit' : won ? 'Win' : 'Loss';
@@ -709,7 +710,8 @@ function showResultModal(data) {
     for (let r = 0; r < MAX_GUESSES; r++) {
       const rowEl = document.createElement('div');
       rowEl.className = 'result-mini-row';
-      for (let c = 0; c < WORD_LEN; c++) {
+      rowEl.style.gridTemplateColumns = `repeat(${S.wordLen}, 1fr)`;
+      for (let c = 0; c < S.wordLen; c++) {
         const t = document.createElement('div');
         t.className = 'result-mini-tile';
         if (guesses[r]) t.classList.add(guesses[r].result[c] || '');
