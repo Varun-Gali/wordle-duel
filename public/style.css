@@ -41,7 +41,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 #drm-video{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1}
 
 /* ── App / Screens ── */
-#app{width:100%;height:100vh;position:relative;display:flex;flex-direction:column;overflow:hidden}
+#app{width:100%;height:100%;height:100dvh;position:relative;display:flex;flex-direction:column;overflow:hidden}
 .screen{
   position:absolute;inset:0;display:flex;flex-direction:column;
   opacity:0;pointer-events:none;
@@ -489,8 +489,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
   .lobby-wrap{flex-direction:column}
   .lobby-sidebar{width:100%}
   .ghost-panel{display:none}
-  .kb-key{height:44px;min-width:30px;font-size:12px}
-  .kb-key.wide{min-width:52px}
+  .kb-row{gap:3px}
+  .kb-key{height:44px;min-width:0;font-size:12px;padding:0}
+  .kb-key.wide{min-width:42px}
+  .keyboard{padding:8px 4px 12px}
   .pitch-cols{flex-direction:column}
   .result-stats{flex-wrap:wrap}
   .hero-title{font-size:clamp(24px,8vw,40px)}
