@@ -464,8 +464,11 @@ function applyTheme() {
 
 const THEMES = [
   { id: 'default', name: 'Classic Dark', cost: 0, colors: ['#3a3a3a', '#c9b458', '#6aaa64'] },
-  { id: 'cyberpunk', name: 'Cyberpunk', cost: 5000, colors: ['#3f3f46', '#eab308', '#10b981'] },
-  { id: 'ocean', name: 'Deep Ocean', cost: 2000, colors: ['#475569', '#fbbf24', '#059669'] }
+  { id: 'cyberpunk', name: 'Cyberpunk', cost: 1500, colors: ['#ec4899', '#eab308', '#10b981'] },
+  { id: 'ocean', name: 'Deep Ocean', cost: 2500, colors: ['#3b82f6', '#f97316', '#2dd4bf'] },
+  { id: 'noir', name: 'Noir City', cost: 3500, colors: ['#f59e0b', '#d97706', '#10b981'] },
+  { id: 'jungle', name: 'Neon Jungle', cost: 5000, colors: ['#ec4899', '#a855f7', '#4ade80'] },
+  { id: 'arcade', name: 'Retro Arcade', cost: 8000, colors: ['#3b82f6', '#facc15', '#4ade80'] }
 ];
 
 function renderShop() {
@@ -843,10 +846,35 @@ function flashBoardMsg(elId, msg, duration = 2000) {
   el._t = setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, duration);
 }
 
+function spawnConfetti() {
+  for (let i = 0; i < 60; i++) {
+    const c = document.createElement('div');
+    c.style.position = 'fixed';
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.top = '-10px';
+    c.style.width = '10px';
+    c.style.height = '14px';
+    c.style.background = ['#8b5cf6', '#06b6d4', '#22c55e', '#eab308', '#ec4899'][Math.floor(Math.random()*5)];
+    c.style.zIndex = '9999';
+    c.style.opacity = Math.random();
+    c.style.transform = `rotate(${Math.random() * 360}deg)`;
+    c.style.pointerEvents = 'none';
+    document.body.appendChild(c);
+    
+    const duration = 3000 + Math.random() * 4000;
+    c.animate([
+      { transform: `translate(0, 0) rotate(0deg)`, opacity: 1 },
+      { transform: `translate(${(Math.random()-0.5)*300}px, 100vh) rotate(${Math.random()*2000}deg)`, opacity: 0 }
+    ], { duration, easing: 'cubic-bezier(0, .9, .6, 1)' });
+    setTimeout(() => c.remove(), duration);
+  }
+}
+
 function handleWon() {
   S.gameOver = true;
   playSound('win');
-  flashBoardMsg('my-board-msg', 'You got it!', 60000);
+  spawnConfetti();
+  flashBoardMsg('my-board-msg', 'PERFECT!', 60000);
   const rowIdx = S.myGuesses.length - 1;
   for (let c = 0; c < S.wordLen; c++) {
     const tile = $(`my-board-r${rowIdx}-c${c}`);

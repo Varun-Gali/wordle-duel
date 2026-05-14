@@ -242,12 +242,24 @@ io.on('connection', (socket) => {
   });
 
   // ── Private rooms ──
-  socket.on('create_private', async ({ name, wordLen, isCustom }) => {
+  socket.on('create_private', async ({ name, wordLen, customWord }) => {
     const playerName = (name || 'Player').slice(0, 16).trim() || 'Player';
     const code   = Math.random().toString(36).slice(2, 8).toUpperCase();
     const roomId = `pvt_${code.toLowerCase()}`;
-    const word   = await getNextWord(wordLen).catch(() => getRandomWord(wordLen));
-    const room = createRoom(roomId, word, wordLen, 60, 0, isCustom, 0);
+    
+    let word = '';
+    let isCustom = false;
+    let finalLen = wordLen || 5;
+
+    if (customWord && customWord.length >= 4 && customWord.length <= 8) {
+       word = customWord.toUpperCase();
+       finalLen = word.length;
+       isCustom = true;
+    } else {
+       word = await getNextWord(finalLen).catch(() => getRandomWord(finalLen));
+    }
+
+    const room = createRoom(roomId, word, finalLen, 60, 0, isCustom, 0);
     room.isPrivate = true;
     const pTheme = leaderboard[playerName]?.activeTheme || 'default';
     room.players.push({ id: socket.id, name: playerName, color: '#8b5cf6', theme: pTheme });
