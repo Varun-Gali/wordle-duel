@@ -107,7 +107,11 @@ function showScreen(id) {
 function initSocket() {
   S.socket = io({ transports: ['websocket'] });
 
-  S.socket.on('connect', () => { S.myId = S.socket.id; console.log('Connected'); });
+  S.socket.on('connect', () => { 
+    S.myId = S.socket.id; 
+    console.log('Connected'); 
+    if (S.name) S.socket.emit('get_profile', { name: S.name });
+  });
   
   S.socket.on('in_queue', () => {
     showScreen('screen-lobby');
@@ -338,6 +342,7 @@ function initHomeListeners() {
       localStorage.setItem('wd_picture', picture);
 
       updateNavAvatar();
+      S.socket.emit('get_profile', { name: S.name });
 
       // If arriving from login screen (no mode set), go home
       if (!S.mode) { showScreen('screen-home'); return; }
@@ -553,6 +558,7 @@ function confirmName() {
   S.name = name;
   localStorage.setItem('wd_name', name);
   updateNavAvatar();
+  S.socket.emit('get_profile', { name: S.name });
   if (S.mode === 'quick')  { S.socket.emit('join_queue', { name }); }
   if (S.mode === 'create') { S.socket.emit('create_private', { name, customWord: $('custom-word-input').value.trim() }); }
   if (S.mode === 'join') {
