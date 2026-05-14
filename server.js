@@ -168,8 +168,8 @@ function tryMatchmake() {
     const p1 = waitingPlayers.shift();
     const p2 = waitingPlayers.shift();
     const s1 = io.sockets.sockets.get(p1.socketId);
-    const s2 = p2.isBot ? { join: () => {}, emit: () => {} } : io.sockets.sockets.get(p2.socketId);
-    if (!s1 || (!s2 && !p2.isBot)) {
+    const s2 = io.sockets.sockets.get(p2.socketId);
+    if (!s1 || !s2) {
       if (s1) waitingPlayers.unshift(p1);
       if (s2) waitingPlayers.unshift(p2);
       continue;
@@ -193,8 +193,8 @@ function tryMatchmake() {
       room.guesses[p2.socketId]  = []; room.finished[p2.socketId] = null;
       rooms[roomId] = room;
       socketToRoom[p1.socketId] = roomId;
-      if (!p2.isBot) socketToRoom[p2.socketId] = roomId;
-      s1.join(roomId); if (!p2.isBot) s2.join(roomId);
+      socketToRoom[p2.socketId] = roomId;
+      s1.join(roomId); s2.join(roomId);
       io.to(roomId).emit('match_found', { roomId, players: room.players, countdown: 3 });
       setTimeout(() => startRoom(room), 3500);
     })();
@@ -214,15 +214,6 @@ io.on('connection', (socket) => {
     waitingPlayers.push(playerConf);
     socket.emit('in_queue', { position: waitingPlayers.length });
     tryMatchmake();
-    
-    // Auto-fill with bot if waiting too long
-    setTimeout(() => {
-       const stillInQueue = waitingPlayers.findIndex(p => p.socketId === socket.id);
-       if (stillInQueue !== -1 && waitingPlayers.length === 1) {
-           waitingPlayers.push({ socketId: 'bot_' + socket.id, name: 'WordBot', length: playerConf.length, timeLimit: playerConf.timeLimit, hardcore: playerConf.hardcore, blindfold: playerConf.blindfold, isBot: true });
-           tryMatchmake();
-       }
-    }, 4000);
   });
 
   socket.on('update_queue_settings', (settings) => {
